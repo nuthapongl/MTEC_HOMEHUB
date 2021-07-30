@@ -1,0 +1,44 @@
+[
+  {
+  	"model":"WXKG01LM",
+  	"description" : "MiJia wireless switch",
+	  "deviceType":"switch",
+	  "supports":{
+		"click":["single","double","triple","quadruple","many","long","long_release"]
+	  }
+  },
+  {
+	"model":"RTCGQ11LM",
+  	"description" : "Aqara human body movement and illuminance sensor",
+	  "deviceType":"occupancy",
+	  "supports":{
+		"illuminance":0,
+		"occupancy":"boolean"
+	  }
+  },
+  {
+	"model":"ZNLDP12LM",
+  	"description" : "Aqara smart LED bulb",
+  	"deviceType":"light"
+  },
+  {
+	"model":"MCCGQ11LM",
+  	"description" : "Aqara door & window contact sensor",
+  	"deviceType":"door"
+  },
+  {
+	"model":"DJT11LM",
+  	"description" : "Aqara vibration sensor",
+  	"deviceType":"vibrate"
+  },
+  {
+	"model":"SJCGQ11LM",
+  	"description" : "Aqara water leak sensor",
+  	"deviceType":"waterleak"
+  },
+  {
+	"model":"SJCGQ12LM",
+  	"description" : "Aqara water leak sensor-2",
+  	"deviceType":"waterleak"
+  }
+ ]

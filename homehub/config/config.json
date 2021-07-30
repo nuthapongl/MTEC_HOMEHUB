@@ -1,0 +1,8 @@
+{
+    "uuid": "Homehub-Lk3ya3cv",
+    "hostname": "http://128.199.85.83:3000",
+    "LOGIN_API": "/api/login",
+    "DEVICESTATUS_API": "/api/deviceupdate",
+    "DEVICEEVENT_API": "/api/deviceevent",
+    "DEVICEHISTORY_API": "/api/updatehistory"
+}

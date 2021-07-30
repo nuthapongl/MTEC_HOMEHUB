@@ -1,0 +1,28 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "description": "HomeHub",
+  "main": "index.js",
+  "scripts": {
+    "start": "nodemon main.js",
+    "stop": "killall node",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "chickii",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.19.2",
+    "express": "^4.17.1",
+    "firebase": "^7.17.2",
+    "firebase-admin": "^8.13.0",
+    "moment": "^2.27.0",
+    "mqtt": "^3.0.0",
+    "mqtt-pattern": "^1.2.0",
+    "nodemon": "^1.19.4",
+    "ping": "^0.2.3",
+    "sequelize": "^6.3.4",
+    "sqlite3": "^5.0.0",
+    "uuid": "^8.3.0",
+    "mpg123": "^0.2.3"
+  }
+}
