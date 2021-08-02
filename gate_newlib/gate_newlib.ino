@@ -15,12 +15,17 @@
 #define WIFI_STA_NAME "NUTHAPONG_2.4G"
 #define WIFI_STA_PASS "0830075461M"
 
-#define MQTT_SERVER   "192.168.1.101"
-#define MQTT_PORT     1883
+#define MQTT_SERVER   "68.183.224.46"
+#define MQTT_PORT     8883
 #define MQTT_USERNAME "esp32_Gate_123e"
 #define MQTT_PASSWORD "123456"
 #define MQTT_NAME     "Gate_001"
-int limit_range = 650;
+#define XSHUT_A 18
+#define XSHUT_B 19
+#define M_INTERVAL 45
+const int limit_range = 650;
+const unsigned int interval_mqtt = 300000;
+
 CRGB leds[NUM_LEDS];
 int trigL[4];
 int trigR[4];
@@ -29,20 +34,22 @@ long Start_timeR = 0;
 
 VL53L1X sensor_A; //Create the sensor object
 VL53L1X sensor_B; //Create the sensor object
-
-int startTime = millis(); //used for our timing loop
-int mInterval = 55; //refresh rate of 10hz
-
-#define XSHUT_A 18
-#define XSHUT_B 19
-
-
-#define M_INTERVAL 45
 WiFiClient client;
 PubSubClient mqtt(client);
 DynamicJsonDocument doc(5000);
+
+int mInterval = 55; //refresh rate of 10hz
 int Start = 0;
 char buf[40];
+long Restart_Time = 0;
+int state_button = 0;
+int Status = 0;
+double duration = 0.0;
+unsigned long startTime = 0;
+unsigned long previousTime_mqtt = 0;
+int error_count = 0;
+int distance[2] = {0, 0};
+
 void callback(char* topic, byte* payload, unsigned int length) {
   payload[length] = '\0';
   String topic_str = topic, payload_str = (char*)payload;
@@ -58,8 +65,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
     }*/
 
 }
-int error_count = 0;
-long Restart_Time = 0;
+
 void setup(void)
 {
   Serial.begin(115200);
@@ -135,10 +141,7 @@ void setup(void)
   Restart_Time = millis();
 }
 
-int detect_distance = 0;
-int state_button = 0;
-int  distance1 = 0;
-int distance2 = 0;
+
 
 void loop(void)
 {
@@ -183,9 +186,9 @@ void loop(void)
       Serial.println(a);
     delay(1);
   }
-  distance1 = sensor_A.read();
+  distance[0] = sensor_A.read();
   Serial.print("Sensor_A Reading: ");
-  Serial.print(distance1);
+  Serial.print(distance[0]);
   sensor_A.stopContinuous();
 
   sensor_B.startContinuous(mInterval);
@@ -195,9 +198,9 @@ void loop(void)
       Serial.println(b);
     delay(1);
   }
-  distance2 = sensor_B.read();
+  distance[1] = sensor_B.read();
   Serial.print(" Sensor_B Reading: ");
-  Serial.println(distance2);
+  Serial.println(distance[1]);
   sensor_A.stopContinuous();
 
   Serial.printf("total time : %d \n", millis() - startT);
@@ -214,13 +217,13 @@ void loop(void)
   //  }
 
 
-  if (distance1 > limit_range) {
-    distance1 = limit_range;
+  if (distance[0] > limit_range) {
+    distance[0] = limit_range;
   }
-  if (distance2 > limit_range) {
-    distance2 = limit_range;
+  if (distance[1] > limit_range) {
+    distance[1] = limit_range;
   }
-  if (!(distance1 == 650 && distance2 == 650)) {
+  if (!(distance[0] == 650 && distance[1] == 650)) {
     //Serial.printf("dis : %d , %d\n",  distance1 ,  distance2 );
   }
   if (trigL[0] == 1) {
@@ -237,49 +240,49 @@ void loop(void)
     }
     Serial.println();
   }
-  if (distance1 >= limit_range && distance2 >= limit_range) {
+  if (distance[0] >= limit_range && distance[1] >= limit_range) {
     leds[0] = CRGB::Black;
     leds[7] = CRGB::Black;
     FastLED.show();
   }
 
-  if (distance1 < limit_range - 50 && trigL[0] == 0 && trigR[0] == 0  && distance1 < distance2 ) {
+  if (distance[0] < limit_range - 50 && trigL[0] == 0 && trigR[0] == 0  && distance[0] < distance[1] ) {
     trigL[0] = 1;
     Start_timeL = millis();
     Serial.print("Start Left : ");
     Serial.println(Start_timeL);
   }
-  else  if (distance2 < limit_range - 50 && trigR[0] == 0 && trigL[0] == 0 && distance2 < distance1) {
+  else  if (distance[1] < limit_range - 50 && trigR[0] == 0 && trigL[0] == 0 && distance[1] < distance[0]) {
     trigR[0] = 1;
     Start_timeR = millis();
     Serial.print("Start Right : ");
     Serial.println(Start_timeR);
   }
   if (trigL[0] == 1 && trigR[0] == 0) {
-    if (distance2 < distance1 + 50  ) {
+    if (distance[1] < distance[0] + 50  ) {
       trigL[1] = 1;
       //     Serial.println("trigL1 ");
     }
-    if (((distance1 >= distance2 + 50) || (distance1 <= distance2 + 50) ) && trigL[1] == 1 ) {
+    if (((distance[0] >= distance[1] + 50) || (distance[0] <= distance[1] + 50) ) && trigL[1] == 1 ) {
       trigL[2] = 1;
       // Serial.println("trigL2 ");
     }
-    if ( distance1 > distance2   && trigL[1] == 1 && trigL[2] == 1) {
+    if ( distance[0] > distance[1]   && trigL[1] == 1 && trigL[2] == 1) {
       trigL[3] = 1;
       // Serial.println("trigL3 ");
     }
   }
 
   if (trigR[0] == 1 && trigL[0] == 0) {
-    if (distance1 < distance2 + 50  ) {
+    if (distance[0] < distance[1] + 50  ) {
       trigR[1] = 1;
       // Serial.println("trigR1 ");
     }
-    if (((distance2 >= distance1 + 50) || (distance2 <= distance1 + 50) ) && trigR[1] == 1 ) {
+    if (((distance[1] >= distance[0] + 50) || (distance[1] <= distance[0] + 50) ) && trigR[1] == 1 ) {
       trigR[2] = 1;
       // Serial.println("trigR2 ");
     }
-    if ( distance2 > distance1    && trigR[1] == 1 && trigR[2] == 1) {
+    if ( distance[1] > distance[0]    && trigR[1] == 1 && trigR[2] == 1) {
       trigR[3] = 1;
       // Serial.println("trigR3 ");
     }
@@ -293,11 +296,29 @@ void loop(void)
     FastLED.show();
     Start_timeL = 0;
     //delay(1000);
-    if (distance1 ==  limit_range && distance2 == limit_range) {
-      Serial.println("1 >2");
+    if (distance[0] >=  limit_range && distance[1] >= limit_range) {
+      Serial.println("1 > 2");
+      if (Status == 0) {
+        previousTime_mqtt = startTime = millis();
+        Status = 1;
+
+        Serial.printf("Status: On going, duration: 0  minutes.\n");
+
+        doc["deviceId"] = "9da011eb-00ee-47ae-b055-22c58a2985cc";
+        doc["status"] = "ongoing";
+        doc["duration"] = 0;
+        serializeJson(doc, Serial);
+
+        char buffer2[200];
+        size_t n2 = serializeJson(doc, buffer2);
+        mqtt.beginPublish("gate/status", measureJson(doc), 0);
+        serializeJson(doc, mqtt);
+        mqtt.endPublish();
+        doc.clear();
+      }
       //  Serial.println("reset");
       doc["deviceId"] = "9da011eb-00ee-47ae-b055-22c58a2985cc";
-      doc["direction"] = "out";
+      doc["direction"] = "in";
       Serial.printf("error : %d\n", error_count);
       serializeJson(doc, Serial);
       char buffer1[200];
@@ -317,16 +338,39 @@ void loop(void)
     leds[0] = CRGB::DeepPink;
     FastLED.show();
     //delay(1000);
-    if (distance1 ==  limit_range && distance2 == limit_range) {
-      Serial.println("2>1");
+    Start_timeR = 0;
+
+    if (Status == 1) {
+      Status = 2;
+      duration = convertTime((millis() - startTime) / 1000);
+      Serial.printf("Status: Complete, duration: %.2f minutes.\n", duration);
+
+
+
       doc["deviceId"] = "9da011eb-00ee-47ae-b055-22c58a2985cc";
-      doc["direction"] = "in";
+      doc["status"] = "complete";
+      doc["duration"] = duration;
+      serializeJson(doc, Serial);
+      char buffer2[200];
+      size_t n2 = serializeJson(doc, buffer2);
+      mqtt.beginPublish("gate/status", measureJson(doc), 0);
+      serializeJson(doc, mqtt);
+      mqtt.endPublish();
+      doc.clear();
+      Status = 0;
+      duration = 0;
+      previousTime_mqtt = 0;
+    }
+    if (distance[0] >=  limit_range && distance[1] >= limit_range) {
+      Serial.println("2 > 1");
+      doc["deviceId"] = "9da011eb-00ee-47ae-b055-22c58a2985cc";
+      doc["direction"] = "out";
       Serial.printf("error : %d\n", error_count);
       serializeJson(doc, Serial);
 
       char buffer2[200];
       size_t n2 = serializeJson(doc, buffer2);
-      mqtt.beginPublish("gate", measureJson(doc), 0);
+      mqtt.beginPublish("gate/direction", measureJson(doc), 0);
       serializeJson(doc, mqtt);
       mqtt.endPublish();
       doc.clear();
@@ -338,20 +382,48 @@ void loop(void)
   }
 
 
-  if (trigL[0] == 1 && distance1 >= limit_range && distance2 >= limit_range) {
+  if (trigL[0] == 1 && distance[0] >= limit_range && distance[1] >= limit_range && (millis() - Start_timeL  > 1500)) {
     Serial.println("clear L ");
     for (int i = 0; i < 4; i++)
       trigL[i] = 0;
     error_count ++;
   }
-  if (trigR[0] == 1 && distance1 >= limit_range && distance2 >= limit_range) {
+  if (trigR[0] == 1 && distance[0] >= limit_range && distance[1] >= limit_range && (millis() - Start_timeR  > 1500)) {
     Serial.println("clear R ");
     for (int i = 0; i < 4; i++)
       trigR[i] = 0;
     error_count ++;
   }
 
+  if (Status == 1 && millis() - previousTime_mqtt >= interval_mqtt) {
+    previousTime_mqtt = millis();
+    // duration += 5.0;
+    duration = convertTime((millis() - startTime) / 1000);
+    Serial.printf("Status: On going, duration: %.2f minutes.\n", duration);
+
+    doc["deviceId"] = "9da011eb-00ee-47ae-b055-22c58a2985cc";
+    doc["status"] = "ongoing";
+    doc["duration"] = duration;
+    serializeJson(doc, Serial);
+
+    char buffer2[200];
+    size_t n2 = serializeJson(doc, buffer2);
+    mqtt.beginPublish("gate/status", measureJson(doc), 0);
+    serializeJson(doc, mqtt);
+    mqtt.endPublish();
+    doc.clear();
+
+  }
   delay(1);
+}
+
+float convertTime(uint32_t secs) {
+  uint32_t m, s;
+  m = secs / 60;
+  s = secs % 60;
+  float result = m + (s / 100.0);
+  Serial.printf("result . %.2f ", result);
+  return result;
 }
 
 void Scanner ()
