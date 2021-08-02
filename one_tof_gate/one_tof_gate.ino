@@ -1,14 +1,14 @@
 
-// rev 1.1
+// rev 1.0
 #include <Wire.h>
 #include <VL53L1X.h>
 
 VL53L1X sensor;
 //test
 const unsigned int interval_mqtt = 300000;
-int ROI_X[2] = {7, 7};
+int ROI_X[2] = {5, 5};
 int ROI_Y[2] = {16, 16};
-int ROI_C[2] = {159, 231};
+int ROI_C[2] = {150, 239};
 int distance[2] = {0, 0};
 int limit_range = 650;
 int trigL[4];
@@ -17,7 +17,7 @@ int trigR[4];
 long Start_timeL = 0;
 long Start_timeR = 0;
 
-int mInterval = 100; //refresh rate of 10hz
+int mInterval = 45; //refresh rate of 10hz
 long Restart_Time = 0;
 int detect_distance = 0;
 int state_button = 0;
@@ -39,9 +39,9 @@ void setup()
   }
 
   sensor.setDistanceMode(VL53L1X::Short);
-  sensor.setMeasurementTimingBudget(20000);
+  sensor.setMeasurementTimingBudget(40000);
 
-  sensor.startContinuous(25);
+  sensor.startContinuous(45);
 
   delay(500);
   Serial.println(sensor.getROICenter());

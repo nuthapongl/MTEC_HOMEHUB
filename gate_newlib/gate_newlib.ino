@@ -15,7 +15,7 @@
 #define WIFI_STA_NAME "NUTHAPONG_2.4G"
 #define WIFI_STA_PASS "0830075461M"
 
-#define MQTT_SERVER   "192.168.1.104"
+#define MQTT_SERVER   "192.168.1.101"
 #define MQTT_PORT     1883
 #define MQTT_USERNAME "esp32_Gate_123e"
 #define MQTT_PASSWORD "123456"
@@ -178,6 +178,9 @@ void loop(void)
   int startT = millis();
   sensor_A.startContinuous(mInterval);
   while (!sensor_A.dataReady()) {
+    int a = sensor_A.dataReady();
+    if (a != 0)
+      Serial.println(a);
     delay(1);
   }
   distance1 = sensor_A.read();
@@ -187,6 +190,9 @@ void loop(void)
 
   sensor_B.startContinuous(mInterval);
   while (!sensor_B.dataReady()) {
+    int b = sensor_B.dataReady();
+    if (b != 0)
+      Serial.println(b);
     delay(1);
   }
   distance2 = sensor_B.read();
