@@ -1,15 +1,14 @@
-#include <VL53L1X.h> //Download this library from https://github.com/pololu/vl53l1x-arduino
+#include "SparkFun_VL53L1X.h"
 #include <Wire.h>
 #include <FastLED.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <StreamUtils.h>
-#define Sensor1_newAddress 33 //17
-#define Sensor2_newAddress 39
-#define Button_PIN 16
+
+#define Button_PIN 33
 #define NUM_LEDS 8
-#define DATA_PIN 17
+#define DATA_PIN 32
 //#define WIFI_STA_NAME "Homehub"
 //#define WIFI_STA_PASS "homehub1234"
 #define WIFI_STA_NAME "NUTHAPONG_2.4G"
@@ -20,8 +19,12 @@
 #define MQTT_USERNAME "esp32_Gate_123e"
 #define MQTT_PASSWORD "123456"
 #define MQTT_NAME     "Gate_001"
-#define XSHUT_A 18
-#define XSHUT_B 19
+
+#define SHUTDOWN_PIN 18
+#define INTERRUPT_PIN 16
+#define SHUTDOWN_PIN2 19
+#define INTERRUPT_PIN2 17
+
 #define M_INTERVAL 50
 const int limit_range = 650;
 const unsigned int interval_mqtt = 300000;
@@ -32,13 +35,13 @@ int trigR[4];
 long Start_timeL = 0;
 long Start_timeR = 0;
 
-VL53L1X sensor_A; //Create the sensor object
-VL53L1X sensor_B; //Create the sensor object
+SFEVL53L1X Sensor1(Wire, SHUTDOWN_PIN, INTERRUPT_PIN);
+SFEVL53L1X Sensor2(Wire, SHUTDOWN_PIN2, INTERRUPT_PIN2);
+
 WiFiClient client;
 PubSubClient mqtt(client);
 DynamicJsonDocument doc(5000);
 
-int mInterval = 55; //refresh rate of 10hz
 int Start = 0;
 char buf[40];
 long Restart_Time = 0;
@@ -70,52 +73,39 @@ void setup(void)
 {
   Serial.begin(115200);
   Wire.begin();
-  Wire.setClock(400000);
+  //Wire.setClock(400000);
+  Sensor1.sensorOn();
+  Sensor2.sensorOff();
 
-  pinMode(Button_PIN, INPUT);
-  pinMode(XSHUT_A , OUTPUT);
-  pinMode(XSHUT_B , OUTPUT);
-  digitalWrite(XSHUT_A, LOW);
-  digitalWrite(XSHUT_B, LOW);
-
+  Sensor1.setI2CAddress(40);
   delay(50);
-  digitalWrite(XSHUT_A, HIGH); //Turn sensor_A on
-  delay(50);
-
-  sensor_A.setTimeout(500); //Set the sensors timeout
-
-  if (!sensor_A.init())//try to initilise the sensor
+  if (Sensor1.begin() != 0) //Begin returns 0 on a good init
   {
-    //Sensor does not respond within the timeout time
-    Serial.println("Sensor_A is not responding, check your wiring");
+    Serial.println("Sensor1 failed to begin. Please check wiring. Freezing...");
+    while (1)
+      ;
   }
-  else
+  Serial.println("Sensor1 online!");
+  Sensor2.sensorOn();
+  if (Sensor2.begin() != 0) //Begin returns 0 on a good init
   {
-    sensor_A.setAddress(42); //Set the sensors I2C address
-    sensor_A.setDistanceMode(VL53L1X::Short); //Set the sensor to maximum range of 4 meters
-    sensor_A.setMeasurementTimingBudget(40000); //Set its timing budget in microseconds longer timing budgets will give more accurate measurements
-    sensor_A.startContinuous(M_INTERVAL); //Sets the interval where a measurement can be requested in milliseconds
+    Serial.println("Sensor2 failed to begin. Please check wiring. Freezing...");
+    while (1)
+      ;
   }
+  Serial.println("Sensor2 online!");
+  // Intermeasurement period must be >= timing budget. Default = 100 ms.
 
-  delay(50);
-  digitalWrite(XSHUT_B, HIGH); //Turn sensor_A on
-  delay(50);
+  Sensor1.setTimingBudgetInMs(50);
+  Sensor1.setIntermeasurementPeriod(50);
+  Serial.println(Sensor1.getIntermeasurementPeriod());
+  Sensor1.startRanging(); // Start only once (and do never call stop)
+  Sensor2.setTimingBudgetInMs(50);
+  Sensor2.setIntermeasurementPeriod(50);
+  Serial.println(Sensor2.getIntermeasurementPeriod());
+  Sensor2.startRanging();
 
-  sensor_B.setTimeout(500); //Set the sensors timeout
 
-  if (!sensor_B.init())//try to initilise the sensor
-  {
-    //Sensor does not respond within the timeout time
-    Serial.println("Sensor_A is not responding, check your wiring");
-  }
-  else
-  {
-    // sensor_B.setAddress(43); //Set the sensors I2C address
-    sensor_B.setDistanceMode(VL53L1X::Short); //Set the sensor to maximum range of 4 meters
-    sensor_B.setMeasurementTimingBudget(40000); //Set its timing budget in microseconds longer timing budgets will give more accurate measurements
-    sensor_B.startContinuous(M_INTERVAL); //Sets the interval where a measurement can be requested in milliseconds
-  }
-  delay(50);
   Scanner ();
   FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
   leds[0] = CRGB::Pink;
@@ -178,43 +168,28 @@ void loop(void)
     mqtt.loop();
   }
 
-  int startT = millis();
-  sensor_A.startContinuous(mInterval);
-  while (!sensor_A.dataReady()) {
-    int a = sensor_A.dataReady();
-    if (a != 0)
-      Serial.println(a);
+  int timer = millis();
+  while (!Sensor1.checkForDataReady())
+  {
     delay(1);
   }
-  distance[0] = sensor_A.read();
-  Serial.print("Sensor_A Reading: ");
+  distance[0] = Sensor1.getDistance(); //Get the result of the measurement from the sensor
+  Sensor1.clearInterrupt();
+
+  Serial.print("Distance (mm): ");
   Serial.print(distance[0]);
-  sensor_A.stopContinuous();
 
-  sensor_B.startContinuous(mInterval);
-  while (!sensor_B.dataReady()) {
-    int b = sensor_B.dataReady();
-    if (b != 0)
-      Serial.println(b);
+  while (!Sensor2.checkForDataReady())
+  {
     delay(1);
   }
-  distance[1] = sensor_B.read();
-  Serial.print(" Sensor_B Reading: ");
-  Serial.println(distance[1]);
-  sensor_A.stopContinuous();
+  distance[1] = Sensor2.getDistance(); //Get the result of the measurement from the sensor
+  Sensor2.clearInterrupt();
 
-  Serial.printf("total time : %d \n", millis() - startT);
-  //  if ((millis() - startTime) > mInterval)
-  //  {
-  //    distance1 = sensor_A.read(); //Get the result of the measurement from the sensor
-  //    distance2 = sensor_B.read();
-  //    //    Serial.print("Sensor_A Reading: ");
-  //    //    Serial.print(distance1); //Get a reading in millimeters
-  //    //   // Serial.print("Sensor_B Reading: ");
-  //    //    Serial.print("\t");
-  //    //    Serial.println(distance2);
-  //    startTime = millis();
-  //  }
+  Serial.print("    ");
+  Serial.println(distance[1]);
+  Serial.print("  ");
+  Serial.println(millis() - timer);
 
 
   if (distance[0] > limit_range) {
@@ -298,27 +273,32 @@ void loop(void)
     //delay(1000);
     if (distance[0] >=  limit_range && distance[1] >= limit_range) {
       Serial.println("1 > 2");
-      if (Status == 0) {
-        previousTime_mqtt = startTime = millis();
-        Status = 1;
 
-        Serial.printf("Status: On going, duration: 0  minutes.\n");
+
+      if (Status == 1) {
+        Status = 2;
+        duration = convertTime((millis() - startTime) / 1000);
+        Serial.printf("Status: Complete, duration: %.2f minutes.\n", duration);
+
+
 
         doc["deviceId"] = "9da011eb-00ee-47ae-b055-22c58a2985cc";
-        doc["status"] = "ongoing";
-        doc["duration"] = 0;
+        doc["status"] = "complete";
+        doc["duration"] = duration;
         serializeJson(doc, Serial);
-
         char buffer2[200];
         size_t n2 = serializeJson(doc, buffer2);
         mqtt.beginPublish("gate/status", measureJson(doc), 0);
         serializeJson(doc, mqtt);
         mqtt.endPublish();
         doc.clear();
+        Status = 0;
+        duration = 0;
+        previousTime_mqtt = 0;
       }
       //  Serial.println("reset");
       doc["deviceId"] = "9da011eb-00ee-47ae-b055-22c58a2985cc";
-      doc["direction"] = "in";
+      doc["direction"] = "out";
       Serial.printf("error : %d\n", error_count);
       serializeJson(doc, Serial);
       char buffer1[200];
@@ -340,31 +320,28 @@ void loop(void)
     //delay(1000);
     Start_timeR = 0;
 
-    if (Status == 1) {
-      Status = 2;
-      duration = convertTime((millis() - startTime) / 1000);
-      Serial.printf("Status: Complete, duration: %.2f minutes.\n", duration);
+    if (Status == 0) {
+      previousTime_mqtt = startTime = millis();
+      Status = 1;
 
-
+      Serial.printf("Status: On going, duration: 0  minutes.\n");
 
       doc["deviceId"] = "9da011eb-00ee-47ae-b055-22c58a2985cc";
-      doc["status"] = "complete";
-      doc["duration"] = duration;
+      doc["status"] = "ongoing";
+      doc["duration"] = 0;
       serializeJson(doc, Serial);
+
       char buffer2[200];
       size_t n2 = serializeJson(doc, buffer2);
       mqtt.beginPublish("gate/status", measureJson(doc), 0);
       serializeJson(doc, mqtt);
       mqtt.endPublish();
       doc.clear();
-      Status = 0;
-      duration = 0;
-      previousTime_mqtt = 0;
     }
     if (distance[0] >=  limit_range && distance[1] >= limit_range) {
       Serial.println("2 > 1");
       doc["deviceId"] = "9da011eb-00ee-47ae-b055-22c58a2985cc";
-      doc["direction"] = "out";
+      doc["direction"] = "in";
       Serial.printf("error : %d\n", error_count);
       serializeJson(doc, Serial);
 
