@@ -176,9 +176,6 @@ void loop(void)
   distance[0] = Sensor1.getDistance(); //Get the result of the measurement from the sensor
   Sensor1.clearInterrupt();
 
-  Serial.print("Distance (mm): ");
-  Serial.print(distance[0]);
-
   while (!Sensor2.checkForDataReady())
   {
     delay(1);
@@ -186,10 +183,15 @@ void loop(void)
   distance[1] = Sensor2.getDistance(); //Get the result of the measurement from the sensor
   Sensor2.clearInterrupt();
 
-  Serial.print("    ");
-  Serial.println(distance[1]);
-  Serial.print("  ");
-  Serial.println(millis() - timer);
+  if ( trigL[0] == 1 || trigR[0] == 1) {
+    Serial.print("Distance (mm): ");
+    Serial.print(distance[0]);
+    Serial.print("    ");
+    Serial.println(distance[1]);
+    Serial.print("  ");
+    Serial.println(millis() - timer);
+  }
+
 
 
   if (distance[0] > limit_range) {
